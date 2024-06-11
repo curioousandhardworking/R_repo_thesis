@@ -7,6 +7,7 @@ library(rvest)
 library(data.table)
 library(usethis)
 
+setwd("C:/Users/adamp/OneDrive/Documents")
 zmeny <- read_excel("dyplomka prawa/komplet/zmeny_ve_skutkove_podstate-2009-fin.xlsx", skip = 1)
 names(zmeny)[16] <- "ucinnost"
 
@@ -251,6 +252,56 @@ novely2 <- arrange(novely2, ucinnost)
 novely2[, kumulativne := cumsum(score_novela)]
 novely2[, soubor := "de/kriminalizace"]
 
+data_zmeny <- zmeny[, .(Novela, hlava,
+                          score_novela, 
+                          smer, 
+                          smer_paragrafu,
+                          soubor = "zmeny")]
+
+data_dekrim <- dekrim[, .(Novela, hlava, 
+                          score_novela, 
+                          smer, 
+                          smer_paragrafu,
+                          soubor = "de/kriminalizace")]
+alldata <- rbind(data_zmeny, data_dekrim)
+
+# Calculate cumulative sums by hlava and Novela
+alldata[, kumulativne_hlava_paragrafy := cumsum(smer_paragrafu), by = .(hlava, Novela)]
+alldata[, kumulativne_hlava_odstavce := cumsum(smer), by = .(hlava)]
+
+# Calculate cumulative sums by Novela
+alldata[, kumulativne_odstavce := cumsum(smer), by = Novela]
+alldata[, kumulativne_paragrafy := cumsum(smer_paragrafu), by = Novela]
+
+# Filter for specific hlava values
+filtered_alldata <- alldata[hlava %in% c(1, 2, 3, 4, 5, 6, 7, 9) ]#& ucinnost != as.Date("2010-01-01")]
+#filtered_alldata <- alldata
+
+# Plot kumulativne_hlava_odstavce for each hlava with ucinnost on x-axis using step plot
+ggplot(filtered_dekrim, aes(x = ucinnost, y = kumulativne_hlava_odstavce, color = factor(hlava))) +
+  geom_step() +
+  labs(title = "Cumulative Sum of Odstavce per Selected Hlava",
+       x = "Ucinnost",
+       y = "Cumulative Sum of Odstavce",
+       color = "Hlava") +
+  theme_minimal()
+
+for (hlava_val in unique(filtered_alldata$hlava)) {
+  # Subset data for the current hlava
+  hlava_data <- filtered_dekrim[hlava == hlava_val]
+  
+  # Plot kumulativne_hlava_odstavce for the current hlava
+  p <- ggplot(hlava_data, aes(x = ucinnost, y = kumulativne_hlava_odstavce)) +
+    geom_step(color = "blue") +
+    labs(title = paste("Cumulative Sum of Odstavce for Hlava", hlava_val),
+         x = "Ucinnost",
+         y = "Cumulative Sum of Odstavce")
+  print(p)
+  # Save the plot as a PNG file
+  ggsave(paste0("C:/Users/adamp/OneDrive/Documents/dyplomka prawa/all_hlava_", hlava_val, ".png"),
+         plot = p,
+         width = 8, height = 6, units = "in", dpi = 300)
+}
 
 
 novely$ucinnost<- as.Date(novely$ucinnost)
